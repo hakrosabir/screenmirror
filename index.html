@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ScreenCast - Web Mirror</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- PeerJS for WebRTC -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    
+    <!-- QRCode Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        body {
+            background-color: #0f172a;
+            color: #e2e8f0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        video {
+            background: #000;
+            border-radius: 8px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4">
+
+    <!-- Header -->
+    <header class="mb-8 text-center">
+        <div class="flex items-center justify-center gap-3 mb-2">
+            <i class="fa-solid fa-tower-broadcast text-3xl text-blue-500"></i>
+            <h1 class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">ScreenCast</h1>
+        </div>
+        <p class="text-slate-400 text-sm">Browser-based Peer-to-Peer Screen Mirroring</p>
+    </header>
+
+    <!-- STEP 1: Mode Selection -->
+    <div id="selection-screen" class="glass-panel p-8 rounded-2xl shadow-2xl max-w-md w-full text-center transition-all duration-300">
+        <h2 class="text-xl font-semibold mb-6">Select Role</h2>
+        
+        <div class="grid grid-cols-2 gap-4">
+            <button onclick="startSender()" class="group p-6 rounded-xl bg-slate-800 hover:bg-blue-600 transition-all duration-300 border border-slate-700 flex flex-col items-center gap-3">
+                <i class="fa-solid fa-mobile-screen text-3xl group-hover:scale-110 transition-transform"></i>
+                <span class="font-medium">Share Screen</span>
+                <span class="text-xs text-slate-400 group-hover:text-white">Use on Phone</span>
+            </button>
+
+            <button onclick="startReceiver()" class="group p-6 rounded-xl bg-slate-800 hover:bg-purple-600 transition-all duration-300 border border-slate-700 flex flex-col items-center gap-3">
+                <i class="fa-solid fa-desktop text-3xl group-hover:scale-110 transition-transform"></i>
+                <span class="font-medium">View Screen</span>
+                <span class="text-xs text-slate-400 group-hover:text-white">Use on PC/TV</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- STEP 2: Sender (Phone) Interface -->
+    <div id="sender-interface" class="hidden glass-panel p-6 rounded-2xl shadow-2xl max-w-md w-full text-center">
+        <div class="mb-4 flex justify-between items-center">
+            <h3 class="text-lg font-semibold text-blue-400">Broadcaster</h3>
+            <button onclick="location.reload()" class="text-xs text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i> Exit</button>
+        </div>
+
+        <div class="bg-slate-900 p-4 rounded-lg mb-6 border border-slate-700">
+            <p class="text-sm text-slate-400 mb-2">Connection ID</p>
+            <div class="flex items-center justify-center gap-2">
+                <span id="my-id-display" class="text-2xl font-mono font-bold text-white tracking-wider">...</span>
+                <button onclick="copyId()" class="text-slate-500 hover:text-blue-400 p-2"><i class="fa-regular fa-copy"></i></button>
+            </div>
+        </div>
+
+        <div id="qrcode" class="flex justify-center mb-6 bg-white p-3 rounded-lg mx-auto w-fit"></div>
+
+        <div id="status-sender" class="text-sm text-yellow-400 mb-4 animate-pulse">
+            <i class="fa-solid fa-circle-notch fa-spin mr-2"></i> Waiting for connection...
+        </div>
+
+        <div class="text-xs text-slate-500 mt-4">
+            Open this site on your PC and enter the ID above.
+        </div>
+    </div>
+
+    <!-- STEP 3: Receiver (PC) Interface -->
+    <div id="receiver-interface" class="hidden w-full max-w-5xl flex flex-col items-center">
+        <!-- Controls -->
+        <div class="glass-panel p-4 rounded-xl mb-4 flex flex-wrap gap-4 items-center justify-center w-full max-w-xl">
+            <input type="text" id="remote-id-input" placeholder="Enter Phone ID" class="bg-slate-900 border border-slate-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:border-blue-500 w-40 text-center font-mono uppercase">
+            <button onclick="connectToPeer()" id="connect-btn" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg font-medium transition-colors">
+                Connect
+            </button>
+            <button onclick="toggleFullScreen()" class="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg">
+                <i class="fa-solid fa-expand"></i>
+            </button>
+            <button onclick="location.reload()" class="bg-red-500/20 hover:bg-red-500/40 text-red-300 px-4 py-2 rounded-lg">
+                <i class="fa-solid fa-power-off"></i>
+            </button>
+        </div>
+
+        <!-- Status -->
+        <div id="status-receiver" class="text-slate-400 mb-4 hidden">
+            Connecting...
+        </div>
+
+        <!-- Video Area -->
+        <div class="relative w-full aspect-video bg-black rounded-xl overflow-hidden border border-slate-800 shadow-2xl flex items-center justify-center group">
+            <video id="remote-video" autoplay playsinline class="w-full h-full object-contain"></video>
+            
+            <!-- Placeholder when no video -->
+            <div id="video-placeholder" class="absolute inset-0 flex flex-col items-center justify-center text-slate-600 pointer-events-none">
+                <i class="fa-regular fa-eye-slash text-6xl mb-4"></i>
+                <p>No Signal</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Global State ---
+        let peer = null;
+        let myStream = null;
+        let currentCall = null;
+
+        // --- Helper: Generate Short ID ---
+        // PeerJS needs a unique string. We'll generate a 5-char random string.
+        function generateId() {
+            return Math.random().toString(36).substring(2, 7).toUpperCase();
+        }
+
+        // --- UI Switching ---
+        function showSection(id) {
+            document.getElementById('selection-screen').classList.add('hidden');
+            document.getElementById('sender-interface').classList.add('hidden');
+            document.getElementById('receiver-interface').classList.add('hidden');
+            document.getElementById(id).classList.remove('hidden');
+        }
+
+        // --- SENDER LOGIC (Phone) ---
+        function startSender() {
+            const myId = generateId();
+            initializePeer(myId);
+            showSection('sender-interface');
+            
+            document.getElementById('my-id-display').innerText = myId;
+            
+            // Generate QR Code
+            new QRCode(document.getElementById("qrcode"), {
+                text: myId, // In a real app, this would be the full URL + ID parameter
+                width: 128,
+                height: 128
+            });
+
+            // Listen for connections from Receiver
+            peer.on('connection', (conn) => {
+                document.getElementById('status-sender').innerHTML = `<span class="text-green-400"><i class="fa-solid fa-link"></i> Device Connected!</span>`;
+                
+                // Trigger Screen Share immediately upon connection
+                startScreenShare(conn.peer);
+            });
+        }
+
+        async function startScreenShare(remotePeerId) {
+            try {
+                // Browser prompt to select screen
+                // Note: On Mobile, this asks to record screen.
+                const stream = await navigator.mediaDevices.getDisplayMedia({
+                    video: {
+                        cursor: "always"
+                    },
+                    audio: false 
+                });
+
+                myStream = stream;
+                
+                // Call the receiver with our stream
+                const call = peer.call(remotePeerId, stream);
+                
+                // Handle stream end (user clicks "Stop Sharing" in browser UI)
+                stream.getVideoTracks()[0].onended = function () {
+                   peer.destroy();
+                   location.reload();
+                };
+
+            } catch (err) {
+                console.error("Failed to get display media", err);
+                alert("Screen sharing failed or was cancelled: " + err.message);
+                document.getElementById('status-sender').innerText = "Sharing cancelled.";
+            }
+        }
+
+        // --- RECEIVER LOGIC (PC) ---
+        function startReceiver() {
+            const myId = generateId(); // Receiver also needs an ID
+            initializePeer(myId);
+            showSection('receiver-interface');
+        }
+
+        function connectToPeer() {
+            const remoteId = document.getElementById('remote-id-input').value.toUpperCase().trim();
+            if (!remoteId) return alert("Please enter the ID displayed on your phone.");
+
+            const btn = document.getElementById('connect-btn');
+            const status = document.getElementById('status-receiver');
+            
+            btn.disabled = true;
+            btn.innerText = "Connecting...";
+            status.classList.remove('hidden');
+            status.innerText = "Searching for device...";
+
+            // 1. Establish Data Connection (Handshake)
+            const conn = peer.connect(remoteId);
+
+            conn.on('open', () => {
+                status.innerHTML = '<span class="text-green-400">Found device! Waiting for stream...</span>';
+            });
+
+            conn.on('error', (err) => {
+                alert("Connection Error: " + err);
+                resetReceiverUI();
+            });
+        }
+
+        // Listen for incoming stream calls (The sender calls us with the video)
+        function setupReceiverStreamListener() {
+             peer.on('call', (call) => {
+                document.getElementById('status-receiver').innerHTML = '<span class="text-blue-400">Receiving Stream...</span>';
+                
+                // Answer the call (we don't need to send a stream back)
+                call.answer(); 
+                
+                call.on('stream', (remoteStream) => {
+                    const video = document.getElementById('remote-video');
+                    video.srcObject = remoteStream;
+                    document.getElementById('video-placeholder').classList.add('hidden');
+                    
+                    // Ensure video plays automatically
+                    video.play().catch(e => console.log("Autoplay prevented", e));
+                });
+
+                currentCall = call;
+            });
+        }
+
+        // --- COMMON PEERJS INIT ---
+        function initializePeer(id) {
+            // We use PeerJS default cloud server (free tier). 
+            // In production, you should run your own PeerServer.
+            peer = new Peer(id, {
+                debug: 2
+            });
+
+            peer.on('open', (id) => {
+                console.log('My peer ID is: ' + id);
+            });
+
+            peer.on('error', (err) => {
+                console.error(err);
+                alert("PeerJS Error: " + err.type);
+            });
+
+            // If we are receiver, we need to be ready to answer calls
+            if(document.getElementById('receiver-interface').classList.contains('hidden') === false) {
+               // logic handled in setupReceiverStreamListener, but we need to ensure peer exists first
+            }
+            
+            // Always attach listener
+            setupReceiverStreamListener();
+        }
+
+        // --- UTILS ---
+        function copyId() {
+            const idText = document.getElementById('my-id-display').innerText;
+            navigator.clipboard.writeText(idText).then(() => {
+                alert("ID Copied!");
+            });
+        }
+
+        function resetReceiverUI() {
+            document.getElementById('connect-btn').disabled = false;
+            document.getElementById('connect-btn').innerText = "Connect";
+            document.getElementById('status-receiver').classList.add('hidden');
+        }
+
+        function toggleFullScreen() {
+            const elem = document.getElementById("receiver-interface");
+            if (!document.fullscreenElement) {
+                elem.requestFullscreen().catch(err => {
+                    alert(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
+                });
+            } else {
+                document.exitFullscreen();
+            }
+        }
+
+    </script>
+</body>
+</html>
