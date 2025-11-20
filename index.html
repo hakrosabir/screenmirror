@@ -100,8 +100,14 @@
             Connecting to receiver...
         </div>
 
-        <button id="start-share-btn" onclick="startSharing()" class="w-full py-4 bg-green-600 hover:bg-green-500 text-white font-bold rounded-xl shadow-lg hover:shadow-green-500/30 transition-all transform hover:-translate-y-1 mb-3">
-            <i class="fa-solid fa-play mr-2"></i> Start Broadcast
+        <!-- Screen Share Button -->
+        <button id="start-share-btn" onclick="startSharing('screen')" class="w-full py-4 bg-green-600 hover:bg-green-500 text-white font-bold rounded-xl shadow-lg hover:shadow-green-500/30 transition-all transform hover:-translate-y-1 mb-3">
+            <i class="fa-solid fa-mobile-screen mr-2"></i> Share Screen
+        </button>
+
+        <!-- Camera Share Button (Fallback) -->
+        <button id="start-cam-btn" onclick="startSharing('camera')" class="w-full py-3 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-xl shadow border border-slate-600 transition-all mb-3">
+            <i class="fa-solid fa-camera mr-2"></i> Share Camera Only
         </button>
         
         <button onclick="location.href=window.location.pathname" class="text-slate-500 text-sm mt-4">Cancel</button>
@@ -117,27 +123,20 @@
 
     <script>
         // --- CONFIGURATION ---
-        const peerConfig = { debug: 1 }; // Use default PeerJS cloud server
+        const peerConfig = { debug: 1 }; 
 
         // --- STATE ---
         let peer = null;
-        let conn = null;
         let targetPeerId = null;
 
         // --- INITIALIZATION ---
         window.onload = () => {
-            // Check if we were opened via QR Code (URL contains ?ref=ID)
             const urlParams = new URLSearchParams(window.location.search);
             const refId = urlParams.get('ref');
-
             if (refId) {
-                // We are the SENDER (Phone)
                 showPanel('sender-panel');
                 targetPeerId = refId;
-                // We don't init peer yet, we wait for user to click "Start"
-                // because browsers require user gesture for getDisplayMedia
             } else {
-                // We are at HOME (User chooses role)
                 showPanel('menu-panel');
             }
         };
@@ -148,49 +147,31 @@
             const myId = generateId();
             document.getElementById('display-id').innerText = myId;
 
-            // Generate QR Code with the FULL URL
             const fullUrl = `${window.location.origin}${window.location.pathname}?ref=${myId}`;
             new QRCode(document.getElementById("qrcode"), {
-                text: fullUrl,
-                width: 180,
-                height: 180,
-                colorDark : "#000000",
-                colorLight : "#ffffff",
+                text: fullUrl, width: 180, height: 180,
+                colorDark : "#000000", colorLight : "#ffffff",
                 correctLevel : QRCode.CorrectLevel.H
             });
 
-            // Init Peer
             peer = new Peer(myId, peerConfig);
-
-            peer.on('open', (id) => {
-                console.log('Receiver Ready. ID:', id);
-            });
-
-            // Wait for Video Stream (Call)
+            
             peer.on('call', (call) => {
-                // Transition UI
                 document.getElementById('receiver-waiting').classList.add('hidden');
                 document.getElementById('video-container').classList.remove('hidden');
-
-                // Answer the call
                 call.answer();
-
-                // Play the stream
                 call.on('stream', (remoteStream) => {
                     const video = document.getElementById('remote-video');
                     video.srcObject = remoteStream;
                 });
-                
                 call.on('close', () => location.reload());
             });
-
-            peer.on('error', err => alert("Error: " + err.type));
+            
+            peer.on('error', err => alert("Connection Error: " + err.type));
         }
 
         // --- SENDER LOGIC (Phone) ---
-        function showManualConnect() {
-            showPanel('manual-panel');
-        }
+        function showManualConnect() { showPanel('manual-panel'); }
 
         function connectToId(id) {
             if(!id) return alert("Enter ID");
@@ -198,44 +179,66 @@
             showPanel('sender-panel');
         }
 
-        async function startSharing() {
-            const btn = document.getElementById('start-share-btn');
+        async function startSharing(mode) {
+            const btn = document.getElementById(mode === 'screen' ? 'start-share-btn' : 'start-cam-btn');
+            const originalText = btn.innerHTML;
             btn.disabled = true;
-            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Starting...';
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Initializing...';
 
             try {
-                // 1. Initialize our Peer ID (Sender doesn't need a specific ID, just random)
                 peer = new Peer(generateId(), peerConfig);
-                
                 await new Promise(resolve => peer.on('open', resolve));
 
-                // 2. Get Screen Stream (MUST happen on user click)
-                const stream = await navigator.mediaDevices.getDisplayMedia({
-                    video: { cursor: "always", frameRate: 30 },
-                    audio: false 
-                });
+                let stream = null;
 
-                // 3. Call the Receiver
+                if (mode === 'screen') {
+                    // Check for screen support
+                    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+                        // FALLBACK LOGIC
+                        if(confirm("Your phone browser does not support Screen Sharing. Switch to Camera Sharing instead?")) {
+                            mode = 'camera'; // switch mode
+                        } else {
+                            throw new Error("Screen sharing not supported.");
+                        }
+                    }
+                }
+
+                // Get Media Stream based on Mode (may have switched to camera above)
+                if (mode === 'screen') {
+                    stream = await navigator.mediaDevices.getDisplayMedia({
+                        video: { cursor: "always", frameRate: 30 },
+                        audio: false 
+                    });
+                } else {
+                    // Camera Mode
+                    stream = await navigator.mediaDevices.getUserMedia({ 
+                        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+                        audio: true
+                    });
+                }
+
+                // Call Receiver
                 const call = peer.call(targetPeerId, stream);
 
-                // 4. Update UI
+                // UI Update
                 btn.classList.replace('bg-green-600', 'bg-red-600');
+                btn.classList.replace('bg-slate-700', 'bg-red-600');
                 btn.innerHTML = '<i class="fa-solid fa-stop"></i> Stop Sharing';
-                btn.onclick = () => {
+                
+                // Cleanup function
+                const stopSharing = () => {
                     stream.getTracks().forEach(track => track.stop());
-                    location.href = window.location.pathname; // Reset URL
+                    location.href = window.location.pathname;
                 };
 
-                // 5. Handle Stream Stop (via Browser UI)
-                stream.getVideoTracks()[0].onended = () => {
-                    location.href = window.location.pathname; // Reset URL
-                };
+                btn.onclick = stopSharing;
+                stream.getVideoTracks()[0].onended = stopSharing;
 
             } catch (err) {
                 console.error(err);
-                alert("Could not start screen share: " + err.message);
+                alert("Error: " + err.message + "\n\nTry using the 'Share Camera' button if Screen Share fails.");
                 btn.disabled = false;
-                btn.innerHTML = '<i class="fa-solid fa-play mr-2"></i> Start Broadcast';
+                btn.innerHTML = originalText;
             }
         }
 
@@ -248,18 +251,12 @@
         }
 
         function generateId() {
-            // 4 random chars uppercase
             return Math.floor(Math.random()*16777215).toString(16).slice(0,4).toUpperCase();
         }
 
         function toggleFullScreen() {
-            if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen();
-            } else {
-                if (document.exitFullscreen) {
-                    document.exitFullscreen();
-                }
-            }
+            if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+            else if (document.exitFullscreen) document.exitFullscreen();
         }
     </script>
 </body>
