@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Simple Video Call</title>
+    <title>Group Video Chat</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -13,355 +13,477 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <style>
-        body { background-color: #000; color: #fff; font-family: system-ui, -apple-system, sans-serif; overflow: hidden; }
+        body { background-color: #0f172a; color: #fff; font-family: system-ui, -apple-system, sans-serif; overflow: hidden; }
         
-        /* Glassmorphism utilities */
-        .glass { background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
-        .btn-glass { background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(4px); border: 1px solid rgba(255,255,255,0.1); }
+        /* Glassmorphism */
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.05); }
+        .glass-btn { background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(4px); border: 1px solid rgba(255,255,255,0.1); }
         
-        /* Video Layout */
-        #remote-video { object-fit: cover; width: 100%; height: 100%; }
-        
-        /* Local PIP */
-        #local-video-container {
-            position: absolute; bottom: 100px; right: 20px;
-            width: 100px; height: 150px;
-            background: #1e293b; border-radius: 12px;
-            overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-            border: 2px solid rgba(255,255,255,0.2);
-            transition: all 0.3s ease;
-            z-index: 20;
+        /* Video Grid Layout */
+        #video-grid {
+            display: grid;
+            grid-gap: 10px;
+            width: 100%;
+            height: 100%;
+            padding: 10px;
+            padding-bottom: 100px; /* Space for controls */
+            overflow-y: auto;
         }
-        #local-video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); } /* Mirror local */
+
+        /* Dynamic Grid Columns based on child count (handled via JS classes, but defaults here) */
+        .grid-1 { grid-template-columns: 1fr; }
+        .grid-2 { grid-template-columns: 1fr 1fr; }
+        .grid-3 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; } /* 3rd item spans? JS handles it */
         
-        /* Controls */
+        /* Individual Video Card */
+        .video-card {
+            position: relative;
+            background: #000;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            width: 100%; height: 100%;
+        }
+        
+        .video-card video {
+            width: 100%; height: 100%;
+            object-fit: cover;
+        }
+
+        /* Name Tag overlay */
+        .name-tag {
+            position: absolute; bottom: 10px; left: 10px;
+            background: rgba(0,0,0,0.6); padding: 4px 8px;
+            border-radius: 4px; font-size: 12px; font-weight: 500;
+            backdrop-filter: blur(2px);
+        }
+
+        /* Control Bar */
         .control-bar {
-            position: absolute; bottom: 0; left: 0; right: 0;
-            padding: 20px; padding-bottom: 30px;
-            display: flex; justify-content: space-evenly; align-items: center;
-            background: linear-gradient(to top, rgba(0,0,0,0.9), transparent);
-            z-index: 30;
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 15px;
+            padding: 12px 24px;
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid rgba(255,255,255,0.1);
+            backdrop-filter: blur(16px);
+            border-radius: 100px;
+            z-index: 50;
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.5);
         }
         
         .btn-control {
-            width: 50px; height: 50px; border-radius: 50%;
+            width: 48px; height: 48px; border-radius: 50%;
             display: flex; align-items: center; justify-content: center;
-            font-size: 20px; color: white; transition: transform 0.1s;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            font-size: 18px; color: white; transition: all 0.2s;
         }
+        .btn-control:hover { transform: scale(1.1); background: rgba(255,255,255,0.1); }
         .btn-control:active { transform: scale(0.95); }
-        
-        /* Animations */
-        .pulse-ring { animation: ring 2s infinite; }
-        @keyframes ring { 0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); } 70% { box-shadow: 0 0 0 15px rgba(59, 130, 246, 0); } 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); } }
+        .btn-red { background: #ef4444 !important; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4); }
+        .btn-active { background: #fff !important; color: #000 !important; }
+
+        /* Loading Animation */
+        .loader { border-top-color: #3b82f6; -webkit-animation: spinner 1.5s linear infinite; animation: spinner 1.5s linear infinite; }
+        @keyframes spinner { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
-<body class="h-screen w-screen flex flex-col">
+<body class="h-screen w-screen flex flex-col bg-slate-900">
 
-    <!-- ================= SCREEN 1: HOME / LANDING ================= -->
+    <!-- ================= SCREEN 1: LANDING ================= -->
     <div id="screen-home" class="fixed inset-0 z-50 flex flex-col items-center justify-center p-6 bg-slate-900">
-        <div class="w-full max-w-sm text-center space-y-8">
+        <div class="w-full max-w-sm text-center">
             
-            <div class="mb-8">
-                <div class="w-24 h-24 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-2xl shadow-blue-600/40">
-                    <i class="fa-solid fa-video text-4xl"></i>
-                </div>
-                <h1 class="text-3xl font-bold text-white">Video Call</h1>
-                <p class="text-slate-400 text-sm mt-2">Secure P2P Connection</p>
+            <div class="w-20 h-20 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-blue-900/20 rotate-3">
+                <i class="fa-solid fa-video text-3xl text-white -rotate-3"></i>
             </div>
+            
+            <h1 class="text-3xl font-bold text-white mb-2">Group Call</h1>
+            <p class="text-slate-400 mb-10">Fast, secure, multi-user video chat.</p>
 
-            <!-- Default View: "Start Call" or "Enter Code" -->
-            <div id="view-default" class="space-y-4 w-full">
-                <button onclick="startAsHost()" class="w-full py-4 bg-blue-600 hover:bg-blue-500 rounded-2xl font-bold text-lg shadow-lg shadow-blue-900/20 transition-all active:scale-95">
-                    Start New Call
+            <!-- DEFAULT BUTTONS -->
+            <div id="view-default" class="space-y-4">
+                <button onclick="startMeeting()" class="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-lg shadow-lg shadow-blue-900/30 transition-all flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-plus"></i> Create Meeting
                 </button>
                 
-                <button onclick="toggleManualInput()" class="w-full py-4 bg-slate-800 hover:bg-slate-700 rounded-2xl font-semibold text-slate-300 border border-slate-700 transition-all active:scale-95">
-                    Receive Call (Enter Code)
+                <button onclick="toggleJoinInput()" class="w-full py-4 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-semibold border border-slate-700 transition-all">
+                    Join with Code
                 </button>
             </div>
 
-            <!-- Link View: Seen when opening a link -->
-            <div id="view-join" class="space-y-4 w-full hidden">
-                <p class="text-slate-300 mb-4">You have been invited to a call.</p>
-                <button onclick="joinCall()" class="w-full py-4 bg-green-600 hover:bg-green-500 pulse-ring rounded-2xl font-bold text-lg shadow-lg shadow-green-900/20 transition-all active:scale-95">
-                    Join Call
-                </button>
+            <!-- JOIN INPUT (Hidden) -->
+            <div id="view-manual" class="hidden space-y-4">
+                <input id="manual-room-id" type="text" placeholder="Enter Room Code" class="w-full bg-slate-800 border border-slate-700 p-4 rounded-xl text-center text-white uppercase tracking-widest outline-none focus:border-blue-500 transition-colors">
+                <button onclick="joinMeetingManual()" class="w-full py-4 bg-green-600 hover:bg-green-500 text-white rounded-xl font-bold shadow-lg transition-all">Connect</button>
+                <button onclick="toggleJoinInput()" class="text-slate-500 text-sm">Cancel</button>
             </div>
 
-            <!-- Waiting View: Host waiting for guest -->
-            <div id="view-waiting" class="space-y-6 w-full hidden">
-                <div class="glass p-6 rounded-2xl border border-blue-500/30">
-                    <p class="text-sm text-slate-400 mb-2">Share this link to connect:</p>
-                    
-                    <div class="flex gap-2 mb-4">
-                        <input id="share-link" readonly class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-300 font-mono focus:outline-none">
-                        <button onclick="copyLink()" class="bg-blue-600 px-4 rounded-lg text-white hover:bg-blue-500"><i class="fa-regular fa-copy"></i></button>
-                    </div>
-
-                    <div class="flex items-center justify-center gap-3 text-blue-400 text-sm animate-pulse">
-                        <i class="fa-solid fa-spinner fa-spin"></i> Waiting for answer...
-                    </div>
+            <!-- INVITED VIEW (Hidden) -->
+            <div id="view-invited" class="hidden space-y-6">
+                <div class="bg-slate-800/50 p-6 rounded-2xl border border-slate-700">
+                    <p class="text-slate-300 mb-1">You are invited to Room:</p>
+                    <p id="invite-room-id" class="text-xl font-bold text-blue-400 font-mono tracking-wider">...</p>
                 </div>
-                <button onclick="location.reload()" class="text-slate-500 text-sm underline">Cancel</button>
-            </div>
-
-            <!-- Manual Input View -->
-            <div id="view-manual" class="space-y-4 w-full hidden">
-                <input id="manual-id" type="text" placeholder="Enter Call ID" class="w-full py-4 px-6 bg-slate-800 rounded-2xl text-center text-white font-bold text-xl uppercase tracking-widest border border-slate-700 focus:border-blue-500 outline-none">
-                <button onclick="manualJoin()" class="w-full py-4 bg-green-600 hover:bg-green-500 rounded-2xl font-bold shadow-lg">Connect</button>
-                <button onclick="toggleManualInput()" class="text-slate-500 text-sm">Back</button>
+                <button onclick="joinMeeting()" class="w-full py-4 bg-green-600 hover:bg-green-500 text-white rounded-xl font-bold shadow-lg shadow-green-900/20 transition-all animate-pulse">
+                    Join Now
+                </button>
             </div>
 
         </div>
     </div>
 
-    <!-- ================= SCREEN 2: ACTIVE CALL ================= -->
-    <div id="screen-call" class="fixed inset-0 z-0 hidden bg-black">
-        <!-- Remote Stream (Full Screen) -->
-        <video id="remote-video" autoplay playsinline></video>
-
-        <!-- Local Stream (PIP) -->
-        <div id="local-video-container">
-            <video id="local-video" autoplay playsinline muted></video>
+    <!-- ================= SCREEN 2: ACTIVE MEETING ================= -->
+    <div id="screen-meeting" class="hidden fixed inset-0 z-0 bg-black">
+        
+        <!-- 1. Header (Room Info) -->
+        <div class="absolute top-0 left-0 right-0 p-4 flex justify-between items-center z-40 bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
+            <div class="pointer-events-auto bg-white/10 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 flex items-center gap-3">
+                <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span id="room-id-display" class="text-xs font-mono font-bold text-white tracking-wider select-all">CONNECTING...</span>
+                <button onclick="copyLink()" class="text-white/70 hover:text-white"><i class="fa-regular fa-copy"></i></button>
+            </div>
+            
+            <!-- Toast Notification -->
+            <div id="toast" class="hidden bg-blue-600 text-white text-xs px-4 py-2 rounded-full shadow-lg"></div>
         </div>
 
-        <!-- Controls -->
+        <!-- 2. Video Grid -->
+        <div id="video-grid">
+            <!-- Videos injected here -->
+        </div>
+
+        <!-- 3. Bottom Controls -->
         <div class="control-bar">
-            <!-- Switch Camera -->
-            <button onclick="switchCamera()" class="btn-control btn-glass">
-                <i class="fa-solid fa-camera-rotate"></i>
-            </button>
-
-            <!-- Hang Up -->
-            <button onclick="endCall()" class="btn-control bg-red-600 hover:bg-red-500 shadow-red-600/40 transform scale-110">
-                <i class="fa-solid fa-phone-slash"></i>
-            </button>
-
-            <!-- Mute/Unmute -->
-            <button onclick="toggleMute()" id="btn-mute" class="btn-control btn-glass">
+            <button onclick="toggleAudio()" id="btn-mic" class="btn-control glass-btn">
                 <i class="fa-solid fa-microphone"></i>
             </button>
-        </div>
+            
+            <button onclick="toggleVideo()" id="btn-vid" class="btn-control glass-btn">
+                <i class="fa-solid fa-video"></i>
+            </button>
 
-        <!-- Status Toast -->
-        <div id="status-toast" class="absolute top-10 left-1/2 transform -translate-x-1/2 bg-black/60 px-4 py-2 rounded-full text-xs font-medium backdrop-blur-md border border-white/10 hidden">
-            Connecting...
+            <button onclick="switchCamera()" class="btn-control glass-btn">
+                <i class="fa-solid fa-camera-rotate"></i>
+            </button>
+            
+            <button onclick="leaveMeeting()" class="btn-control btn-red">
+                <i class="fa-solid fa-phone-slash"></i>
+            </button>
         </div>
     </div>
 
     <script>
-        // --- CONFIGURATION ---
-        const peerConfig = { debug: 1 };
+        // --- CONFIG & STATE ---
+        const peerConfig = { debug: 1 }; // Use public PeerJS server
         let peer = null;
-        let currentCall = null;
-        let localStream = null;
-        let currentCamera = 'user'; // 'user' or 'environment'
-        let targetId = null;
-
+        let myStream = null;
+        let myPeerId = null;
+        let roomId = null; // The Host's ID acts as Room ID
+        let isHost = false;
+        let peers = {}; // { peerId: { call, dataConn } }
+        let currentCam = 'user';
+        
         // --- INITIALIZATION ---
         window.onload = () => {
             const urlParams = new URLSearchParams(window.location.search);
-            const callId = urlParams.get('call');
-            
-            if (callId) {
-                // Opened via link -> Receiver Mode
-                targetId = callId;
-                showView('view-join');
-            } else {
-                // Opened normally -> Landing Mode
-                showView('view-default');
+            const roomParam = urlParams.get('room');
+            if (roomParam) {
+                roomId = roomParam;
+                document.getElementById('view-default').classList.add('hidden');
+                document.getElementById('view-invited').classList.remove('hidden');
+                document.getElementById('invite-room-id').innerText = roomId;
             }
         };
 
-        // --- HOST LOGIC (Caller) ---
-        function startAsHost() {
-            const myId = generateId();
-            initializePeer(myId);
-            
-            // Update UI to Waiting Room
-            const link = `${window.location.origin}${window.location.pathname}?call=${myId}`;
-            document.getElementById('share-link').value = link;
-            showView('view-waiting');
+        // --- CORE FUNCTIONS ---
 
-            // Listen for incoming connection
-            peer.on('call', async (call) => {
-                await setupLocalStream();
-                call.answer(localStream); // Answer with our stream
-                handleCall(call);
-            });
+        // 1. Start Meeting (As Host)
+        async function startMeeting() {
+            isHost = true;
+            roomId = generateId(); 
+            await initPeer(roomId); // Host ID = Room ID
+            await enterRoomUI();
+            updateShareLink();
         }
 
-        function copyLink() {
-            const copyText = document.getElementById("share-link");
-            copyText.select();
-            copyText.setSelectionRange(0, 99999); 
-            navigator.clipboard.writeText(copyText.value).then(() => {
-                const btn = document.querySelector('button[onclick="copyLink()"]');
-                btn.innerHTML = '<i class="fa-solid fa-check"></i>';
-                setTimeout(() => btn.innerHTML = '<i class="fa-regular fa-copy"></i>', 2000);
-            });
+        // 2. Join Meeting (As Guest)
+        async function joinMeeting() {
+            if (!roomId) return alert("No Room ID found");
+            await initPeer(generateId()); // Guest gets random ID
+            await enterRoomUI();
+            connectToHost(roomId);
         }
 
-        // --- GUEST LOGIC (Receiver) ---
-        async function joinCall() {
-            // We don't need a specific ID, just a random one to connect
-            const myId = generateId();
-            initializePeer(myId);
-
-            // Peer must be ready before calling
-            peer.on('open', async () => {
-                await setupLocalStream();
-                const call = peer.call(targetId, localStream);
-                handleCall(call);
-            });
+        function joinMeetingManual() {
+            const val = document.getElementById('manual-room-id').value.trim().toUpperCase();
+            if(!val) return;
+            roomId = val;
+            joinMeeting();
         }
 
-        function manualJoin() {
-            const inputId = document.getElementById('manual-id').value.trim();
-            if (!inputId) return alert("Please enter a valid ID");
-            targetId = inputId;
-            joinCall();
-        }
+        // --- PEERJS LOGIC ---
 
-        // --- CORE CALL HANDLING ---
-        function initializePeer(id) {
-            peer = new Peer(id, peerConfig);
-            peer.on('error', err => alert("Connection Error: " + err.type));
-        }
-
-        async function setupLocalStream() {
-            try {
-                localStream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: currentCamera },
-                    audio: true
+        async function initPeer(id) {
+            return new Promise((resolve, reject) => {
+                peer = new Peer(id, peerConfig);
+                
+                peer.on('open', (id) => {
+                    myPeerId = id;
+                    resolve();
                 });
-                
-                // Show local preview
-                document.getElementById('screen-home').classList.add('hidden');
-                document.getElementById('screen-call').classList.remove('hidden');
-                document.getElementById('local-video').srcObject = localStream;
-                
-                showToast("Connecting...");
-            } catch (err) {
-                console.error(err);
-                alert("Camera access denied. Please allow permissions.");
-                location.href = window.location.pathname;
-            }
+
+                peer.on('error', (err) => {
+                    console.error(err);
+                    if(err.type === 'unavailable-id') {
+                        alert("Room ID taken or invalid. Try creating a new one.");
+                        leaveMeeting();
+                    } else {
+                        showToast("Connection Error: " + err.type);
+                    }
+                    resolve(); // Resolve anyway to avoid hanging
+                });
+
+                // Handle Incoming Calls (Video)
+                peer.on('call', (call) => {
+                    call.answer(myStream);
+                    handleCall(call);
+                });
+
+                // Handle Incoming Data (Coordination)
+                peer.on('connection', (conn) => {
+                    handleDataConnection(conn);
+                });
+            });
+        }
+
+        // --- MESH NETWORKING LOGIC ---
+
+        function connectToHost(hostId) {
+            // 1. Call Host for Video
+            const call = peer.call(hostId, myStream);
+            handleCall(call);
+
+            // 2. Connect Data for Discovery
+            const conn = peer.connect(hostId);
+            handleDataConnection(conn);
+
+            // 3. Wait for Peer List from Host
+            conn.on('open', () => {
+                conn.send({ type: 'join-request', peerId: myPeerId });
+            });
+        }
+
+        function handleDataConnection(conn) {
+            conn.on('open', () => {
+                // Add to our tracking
+                if(!peers[conn.peer]) peers[conn.peer] = {};
+                peers[conn.peer].conn = conn;
+            });
+
+            conn.on('data', (data) => {
+                // HOST LOGIC: Receive Join Request -> Send Peer List
+                if (isHost && data.type === 'join-request') {
+                    const existingPeers = Object.keys(peers).filter(p => p !== data.peerId);
+                    // Send list to new guy
+                    conn.send({ type: 'peer-list', peers: existingPeers });
+                    // Tell others about new guy (Optional optimization, but mesh usually handles itself via direct calls)
+                }
+
+                // GUEST LOGIC: Receive Peer List -> Call Everyone
+                if (!isHost && data.type === 'peer-list') {
+                    data.peers.forEach(remotePeerId => {
+                        if (!peers[remotePeerId]) {
+                            // Call them
+                            const call = peer.call(remotePeerId, myStream);
+                            handleCall(call);
+                        }
+                    });
+                }
+            });
         }
 
         function handleCall(call) {
-            currentCall = call;
+            // Track the call
+            if(!peers[call.peer]) peers[call.peer] = {};
+            peers[call.peer].call = call;
 
-            // Receive Remote Stream
+            // When they send us their stream
             call.on('stream', (remoteStream) => {
-                showToast("Connected");
-                const video = document.getElementById('remote-video');
-                video.srcObject = remoteStream;
-            });
-
-            call.on('close', () => endCall());
-            call.on('error', () => endCall());
-        }
-
-        // --- IN-CALL FEATURES ---
-        
-        async function switchCamera() {
-            if (!localStream) return;
-            
-            // Toggle mode
-            currentCamera = currentCamera === 'user' ? 'environment' : 'user';
-            const videoTrack = localStream.getVideoTracks()[0];
-
-            try {
-                // 1. Get new stream
-                const newStream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: currentCamera },
-                    audio: true
-                });
-                
-                const newVideoTrack = newStream.getVideoTracks()[0];
-
-                // 2. Replace track in PeerConnection (Seamless switch)
-                if (currentCall && currentCall.peerConnection) {
-                    const sender = currentCall.peerConnection.getSenders().find(s => s.track.kind === 'video');
-                    if (sender) {
-                        sender.replaceTrack(newVideoTrack);
-                    }
+                if (!document.getElementById(`video-${call.peer}`)) {
+                    addVideoToGrid(remoteStream, call.peer);
                 }
-
-                // 3. Update Local View
-                localStream.removeTrack(videoTrack);
-                localStream.addTrack(newVideoTrack);
-                document.getElementById('local-video').srcObject = newStream;
-                
-                // Update reference
-                localStream = newStream;
-
-                // Stop old track to release hardware
-                videoTrack.stop();
-
-            } catch (err) {
-                console.error("Switch Camera Failed", err);
-                alert("Could not switch camera.");
-                currentCamera = currentCamera === 'user' ? 'environment' : 'user'; // Revert
-            }
-        }
-
-        function toggleMute() {
-            const audioTrack = localStream.getAudioTracks()[0];
-            const btn = document.getElementById('btn-mute');
-            
-            if (audioTrack.enabled) {
-                audioTrack.enabled = false;
-                btn.innerHTML = '<i class="fa-solid fa-microphone-slash"></i>';
-                btn.classList.add('bg-red-500/50');
-            } else {
-                audioTrack.enabled = true;
-                btn.innerHTML = '<i class="fa-solid fa-microphone"></i>';
-                btn.classList.remove('bg-red-500/50');
-            }
-        }
-
-        function endCall() {
-            if (currentCall) currentCall.close();
-            if (localStream) localStream.getTracks().forEach(t => t.stop());
-            window.location.href = window.location.pathname; // Reload clean
-        }
-
-        // --- UI UTILS ---
-        function showView(viewId) {
-            // Hide all views in home screen
-            ['view-default', 'view-join', 'view-waiting', 'view-manual'].forEach(id => {
-                document.getElementById(id).classList.add('hidden');
             });
-            // Show requested view
-            document.getElementById(viewId).classList.remove('hidden');
+
+            // Cleanup
+            call.on('close', () => removeVideo(call.peer));
+            call.on('error', () => removeVideo(call.peer));
         }
 
-        function toggleManualInput() {
-            const def = document.getElementById('view-default');
-            const man = document.getElementById('view-manual');
-            if (def.classList.contains('hidden')) {
-                def.classList.remove('hidden');
-                man.classList.add('hidden');
+        // --- UI & MEDIA HANDLING ---
+
+        async function enterRoomUI() {
+            try {
+                // Get Local Stream
+                myStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: true });
+                
+                // UI Switch
+                document.getElementById('screen-home').classList.add('hidden');
+                document.getElementById('screen-meeting').classList.remove('hidden');
+                document.getElementById('room-id-display').innerText = roomId;
+
+                // Add My Video
+                addVideoToGrid(myStream, 'me', true);
+                
+            } catch (err) {
+                alert("Camera/Mic access denied. " + err.message);
+                leaveMeeting();
+            }
+        }
+
+        function addVideoToGrid(stream, userId, isLocal = false) {
+            const grid = document.getElementById('video-grid');
+            
+            const card = document.createElement('div');
+            card.className = 'video-card';
+            card.id = `video-${userId}`;
+            
+            const vid = document.createElement('video');
+            vid.srcObject = stream;
+            vid.autoplay = true;
+            vid.playsInline = true;
+            if (isLocal) vid.muted = true; // Mute self
+            if (isLocal) vid.style.transform = 'scaleX(-1)'; // Mirror self
+
+            const tag = document.createElement('div');
+            tag.className = 'name-tag';
+            tag.innerText = isLocal ? 'You' : `User ${userId.substr(0,4)}`;
+
+            card.appendChild(vid);
+            card.appendChild(tag);
+            grid.appendChild(card);
+
+            updateGridLayout();
+        }
+
+        function removeVideo(userId) {
+            const el = document.getElementById(`video-${userId}`);
+            if (el) el.remove();
+            if(peers[userId]) delete peers[userId];
+            updateGridLayout();
+        }
+
+        function updateGridLayout() {
+            const grid = document.getElementById('video-grid');
+            const count = grid.children.length;
+            
+            // Reset classes
+            grid.className = '';
+
+            // Responsive Grid Logic
+            if (count === 1) {
+                grid.style.gridTemplateColumns = "1fr";
+            } else if (count === 2) {
+                grid.style.gridTemplateColumns = "1fr 1fr"; // Mobile Landscape / Desktop
+                if(window.innerWidth < 600) grid.style.gridTemplateColumns = "1fr"; // Mobile Portrait: Stack
+            } else if (count <= 4) {
+                grid.style.gridTemplateColumns = "1fr 1fr";
             } else {
-                def.classList.add('hidden');
-                man.classList.remove('hidden');
+                grid.style.gridTemplateColumns = "repeat(auto-fit, minmax(300px, 1fr))";
+            }
+        }
+
+        // --- CONTROLS ---
+
+        function toggleAudio() {
+            const track = myStream.getAudioTracks()[0];
+            track.enabled = !track.enabled;
+            const btn = document.getElementById('btn-mic');
+            btn.innerHTML = track.enabled ? '<i class="fa-solid fa-microphone"></i>' : '<i class="fa-solid fa-microphone-slash"></i>';
+            btn.classList.toggle('btn-red', !track.enabled);
+        }
+
+        function toggleVideo() {
+            const track = myStream.getVideoTracks()[0];
+            track.enabled = !track.enabled;
+            const btn = document.getElementById('btn-vid');
+            btn.innerHTML = track.enabled ? '<i class="fa-solid fa-video"></i>' : '<i class="fa-solid fa-video-slash"></i>';
+            btn.classList.toggle('btn-red', !track.enabled);
+        }
+
+        async function switchCamera() {
+            if(peers.length > 0) { showToast("Restarting stream..."); }
+            
+            currentCam = currentCam === 'user' ? 'environment' : 'user';
+            
+            // 1. Stop old tracks
+            myStream.getTracks().forEach(t => t.stop());
+
+            // 2. Get new stream
+            const newStream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: currentCam }, 
+                audio: true // Re-request audio too
+            });
+
+            // 3. Replace track for PEERS
+            const videoTrack = newStream.getVideoTracks()[0];
+            const audioTrack = newStream.getAudioTracks()[0];
+
+            for (let p in peers) {
+                if (peers[p].call && peers[p].call.peerConnection) {
+                    const senderV = peers[p].call.peerConnection.getSenders().find(s => s.track.kind === 'video');
+                    const senderA = peers[p].call.peerConnection.getSenders().find(s => s.track.kind === 'audio');
+                    if(senderV) senderV.replaceTrack(videoTrack);
+                    if(senderA) senderA.replaceTrack(audioTrack);
+                }
+            }
+
+            // 4. Replace Local View
+            const myVid = document.querySelector(`#video-me video`);
+            if(myVid) {
+                myVid.srcObject = newStream;
+                myVid.style.transform = currentCam === 'user' ? 'scaleX(-1)' : 'none';
+            }
+            myStream = newStream;
+        }
+
+        function leaveMeeting() {
+            if(peer) peer.destroy();
+            location.href = window.location.pathname;
+        }
+
+        function copyLink() {
+            const url = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
+            navigator.clipboard.writeText(url);
+            showToast("Link Copied!");
+        }
+
+        function updateShareLink() {
+            // Just helper to ensure we are ready
+        }
+
+        // --- UTILS ---
+        function toggleJoinInput() {
+            const home = document.getElementById('view-default');
+            const manual = document.getElementById('view-manual');
+            if(home.classList.contains('hidden')) {
+                home.classList.remove('hidden'); manual.classList.add('hidden');
+            } else {
+                home.classList.add('hidden'); manual.classList.remove('hidden');
             }
         }
 
         function showToast(msg) {
-            const t = document.getElementById('status-toast');
+            const t = document.getElementById('toast');
             t.innerText = msg;
             t.classList.remove('hidden');
-            setTimeout(() => t.classList.add('hidden'), 3000);
+            setTimeout(() => t.classList.add('hidden'), 2000);
         }
 
         function generateId() {
-            // Generate a short 4-char random ID
-            return Math.floor(Math.random()*16777215).toString(16).slice(0,4).toUpperCase();
+            return Math.floor(Math.random()*16777215).toString(16).toUpperCase();
         }
+
+        // Handle window resize for grid
+        window.onresize = updateGridLayout;
     </script>
 </body>
 </html>
