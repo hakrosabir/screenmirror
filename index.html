@@ -15,92 +15,118 @@
     <style>
         body { background-color: #0f172a; color: #fff; font-family: system-ui, -apple-system, sans-serif; overflow: hidden; }
         
-        /* Grid Layout */
+        /* --- RESPONSIVE GRID LAYOUT --- */
         #video-grid {
             display: grid;
             gap: 12px;
             width: 100%;
             height: 100%;
             padding: 12px;
-            padding-bottom: 100px;
+            padding-bottom: 100px; /* Space for controls */
             overflow-y: auto;
-            align-content: center; /* Center grid content vertically */
+            align-content: start; /* Align to top */
+            /* Default: Auto-fit based on width. 
+               150px min-width allows 2 cols on mobile (360px+) */
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            grid-auto-rows: min-content; /* Keep rows tight */
         }
 
-        /* Dynamic Classes for Grid */
-        .grid-1 { grid-template-columns: 1fr; }
-        .grid-2 { grid-template-columns: 1fr 1fr; } /* Desktop: Side by side */
-        .grid-3 { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
-        
-        /* Mobile Responsive Grid Override */
-        @media (max-width: 640px) {
-            .grid-2 { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; } /* Mobile: Stacked */
+        /* Desktop optimizations for larger screens */
+        @media (min-width: 768px) {
+            #video-grid {
+                align-content: center;
+                grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            }
         }
 
-        /* Video Card */
+        /* --- VIDEO CARD STYLING --- */
         .video-card {
             position: relative;
             background: #1e293b;
             border-radius: 16px;
             overflow: hidden;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            aspect-ratio: 16/9; /* Force standard aspect ratio */
+            aspect-ratio: 16/9; /* Cinematic Ratio */
             width: 100%;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            border: 2px solid transparent; /* For unique color */
         }
-        /* Allow 1 person to fill screen */
-        .grid-1 .video-card { aspect-ratio: auto; height: 100%; }
+        
+        .video-card:hover { transform: scale(1.02); z-index: 10; }
 
         .video-card video {
             width: 100%; height: 100%;
             object-fit: cover;
+            background: #000;
         }
+
+        /* PINNED MODE (Full Screen Focus) */
+        .video-card.pinned {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            z-index: 100; width: 100% !important; height: 100% !important;
+            aspect-ratio: auto; border-radius: 0; border: none;
+            background: #000;
+        }
+        .video-card.pinned video { object-fit: contain; }
+
+        /* --- AVATAR (Camera Off) --- */
+        .avatar-overlay {
+            position: absolute; inset: 0;
+            background: #1e293b;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            z-index: 5;
+            display: none; /* Hidden by default */
+        }
+        .avatar-circle {
+            width: 60px; height: 60px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 24px; font-weight: bold; color: white;
+            box-shadow: 0 0 20px rgba(0,0,0,0.3);
+            margin-bottom: 10px;
+            animation: pulse-glow 2s infinite;
+        }
+        @keyframes pulse-glow { 0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.1); opacity: 0.9; } 100% { transform: scale(1); opacity: 1; } }
 
         /* Name Tag */
         .name-tag {
             position: absolute; bottom: 12px; left: 12px;
-            background: rgba(0,0,0,0.6); padding: 6px 12px;
-            border-radius: 8px; font-size: 13px; font-weight: 600;
+            background: rgba(0,0,0,0.6); padding: 4px 10px;
+            border-radius: 8px; font-size: 12px; font-weight: 600;
             backdrop-filter: blur(4px); border: 1px solid rgba(255,255,255,0.1);
-            display: flex; align-items: center; gap: 6px;
+            display: flex; align-items: center; gap: 6px; z-index: 20;
         }
-        .mic-icon { font-size: 10px; }
+        .mic-icon { font-size: 10px; color: #ef4444; display: none; } /* Hidden unless muted */
 
-        /* Floating Controls */
+        /* --- CONTROLS --- */
         .control-bar {
-            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
             display: flex; gap: 12px;
-            padding: 12px 20px;
-            background: rgba(15, 23, 42, 0.85);
+            padding: 10px 20px;
+            background: rgba(15, 23, 42, 0.9);
             border: 1px solid rgba(255,255,255,0.1);
             backdrop-filter: blur(12px);
             border-radius: 24px;
             z-index: 50;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+            max-width: 90vw; overflow-x: auto;
         }
         
         .btn-control {
-            width: 50px; height: 50px; border-radius: 18px;
+            min-width: 48px; height: 48px; border-radius: 16px;
             display: flex; align-items: center; justify-content: center;
             font-size: 18px; color: white; transition: all 0.2s;
-            background: rgba(255,255,255,0.1);
+            background: rgba(255,255,255,0.05);
         }
-        .btn-control:hover { background: rgba(255,255,255,0.2); transform: translateY(-2px); }
         .btn-control:active { transform: scale(0.95); }
-        .btn-red { background: #ef4444 !important; color: white; }
-        .btn-off { background: rgba(255, 255, 255, 0.9) !important; color: #000 !important; }
+        .btn-red { background: #ef4444 !important; }
+        .btn-off { background: #fff !important; color: #000 !important; }
 
-        /* Toast Notifications */
-        #toast-container {
-            position: fixed; top: 80px; right: 20px;
-            display: flex; flex-col: column; gap: 10px; z-index: 60;
-        }
-        .toast {
-            background: rgba(15, 23, 42, 0.9); border-left: 4px solid #3b82f6;
-            color: white; padding: 12px 20px; border-radius: 8px;
-            font-size: 14px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
-            backdrop-filter: blur(4px); animation: slideIn 0.3s ease;
-        }
-        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        /* Toast */
+        #toast-container { position: fixed; top: 80px; right: 20px; z-index: 60; display: flex; flex-direction: column; gap: 10px; }
+        .toast { background: rgba(15, 23, 42, 0.95); color: white; padding: 10px 16px; border-radius: 8px; font-size: 13px; border-left: 4px solid #3b82f6; animation: slideIn 0.3s; }
+        @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
     </style>
 </head>
 <body class="h-screen w-screen flex flex-col bg-slate-900">
@@ -109,38 +135,37 @@
     <div id="screen-home" class="fixed inset-0 z-50 flex flex-col items-center justify-center p-6 bg-slate-900">
         <div class="w-full max-w-md text-center">
             
-            <div class="w-24 h-24 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-2xl shadow-blue-900/30 transform rotate-3 hover:rotate-0 transition-transform">
-                <i class="fa-solid fa-video text-4xl text-white -rotate-3"></i>
+            <div class="w-24 h-24 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-2xl shadow-blue-900/30">
+                <i class="fa-solid fa-video text-4xl text-white"></i>
             </div>
             
             <h1 class="text-4xl font-bold text-white mb-2">Team Meet</h1>
-            <p class="text-slate-400 mb-12 text-lg">Secure, high-quality video conferencing.</p>
+            <p class="text-slate-400 mb-12">Secure, responsive group calls.</p>
 
-            <!-- Main Actions -->
             <div id="action-buttons" class="space-y-4">
-                <button onclick="createMeeting()" class="w-full py-5 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold text-lg shadow-lg shadow-blue-900/20 transition-all flex items-center justify-center gap-3 transform active:scale-95">
+                <button onclick="createMeeting()" class="w-full py-5 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold text-lg shadow-lg transition-all flex items-center justify-center gap-3 active:scale-95">
                     <i class="fa-solid fa-plus-circle"></i> New Meeting
                 </button>
                 
                 <div class="relative">
-                    <input id="manual-room" type="text" placeholder="Enter Code to Join" class="w-full bg-slate-800 border border-slate-700 text-center text-white uppercase tracking-widest font-bold py-4 rounded-2xl focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all placeholder:text-slate-600 placeholder:font-normal">
+                    <input id="manual-room" type="text" placeholder="Enter Code to Join" class="w-full bg-slate-800 border border-slate-700 text-center text-white uppercase tracking-widest font-bold py-4 rounded-2xl focus:border-blue-500 outline-none transition-all">
                     <button onclick="joinManual()" class="absolute right-2 top-2 bottom-2 bg-slate-700 hover:bg-green-600 text-white px-4 rounded-xl transition-colors">
                         <i class="fa-solid fa-arrow-right"></i>
                     </button>
                 </div>
             </div>
 
-            <!-- Invited View (shown if ?room= exists) -->
+            <!-- Invited View -->
             <div id="view-invited" class="hidden bg-slate-800/50 p-8 rounded-3xl border border-slate-700 backdrop-blur-sm">
                 <p class="text-slate-400 text-sm uppercase tracking-wide font-bold mb-2">Join Room</p>
                 <p id="invite-code" class="text-3xl font-mono font-bold text-white mb-6 tracking-wider">---</p>
-                <button onclick="joinInvited()" class="w-full py-4 bg-green-600 hover:bg-green-500 text-white rounded-xl font-bold text-lg shadow-lg transition-transform active:scale-95">
+                <button onclick="joinInvited()" class="w-full py-4 bg-green-600 hover:bg-green-500 text-white rounded-xl font-bold text-lg shadow-lg active:scale-95">
                     Join Now
                 </button>
             </div>
-
+            
             <div id="loading-msg" class="hidden mt-8 text-blue-400 animate-pulse font-semibold">
-                <i class="fa-solid fa-circle-notch fa-spin mr-2"></i> Connecting to secure server...
+                <i class="fa-solid fa-circle-notch fa-spin mr-2"></i> Connecting...
             </div>
         </div>
     </div>
@@ -148,40 +173,36 @@
     <!-- ================= 2. MEETING ROOM ================= -->
     <div id="screen-meeting" class="hidden fixed inset-0 z-0 bg-black">
         
-        <!-- Header Info -->
-        <div class="absolute top-0 left-0 right-0 p-4 flex justify-between items-start z-40 pointer-events-none">
+        <!-- Header -->
+        <div class="absolute top-0 left-0 right-0 p-4 flex justify-between z-40 pointer-events-none">
             <div class="pointer-events-auto bg-slate-900/80 backdrop-blur px-4 py-2 rounded-full border border-white/10 flex items-center gap-3 shadow-lg">
                 <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                 <span id="room-display" class="font-mono font-bold text-white tracking-wider select-all cursor-pointer" onclick="copyLink()">---</span>
-                <button onclick="copyLink()" class="w-6 h-6 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-xs transition-colors">
-                    <i class="fa-regular fa-copy"></i>
-                </button>
+                <button onclick="copyLink()" class="text-white/70 hover:text-white"><i class="fa-regular fa-copy"></i></button>
             </div>
         </div>
 
-        <!-- Toast Container -->
+        <!-- Toasts -->
         <div id="toast-container"></div>
 
-        <!-- Video Grid -->
-        <div id="video-grid" class="grid-1">
-            <!-- Dynamic Video Elements -->
-        </div>
+        <!-- Grid -->
+        <div id="video-grid"></div>
 
         <!-- Controls -->
         <div class="control-bar">
-            <button onclick="toggleAudio()" id="btn-mic" class="btn-control" title="Toggle Mic">
+            <button onclick="toggleAudio()" id="btn-mic" class="btn-control" title="Mic">
                 <i class="fa-solid fa-microphone"></i>
             </button>
             
-            <button onclick="toggleVideo()" id="btn-vid" class="btn-control" title="Toggle Camera">
+            <button onclick="toggleVideo()" id="btn-vid" class="btn-control" title="Video">
                 <i class="fa-solid fa-video"></i>
             </button>
 
-            <button onclick="switchCamera()" class="btn-control" title="Switch Cam">
+            <button onclick="switchCamera()" class="btn-control" title="Swap Cam">
                 <i class="fa-solid fa-camera-rotate"></i>
             </button>
 
-            <button onclick="shareLink()" class="btn-control" title="Share Link">
+            <button onclick="shareLink()" class="btn-control" title="Share">
                 <i class="fa-solid fa-share-nodes"></i>
             </button>
             
@@ -192,7 +213,7 @@
     </div>
 
     <script>
-        // --- STATE MANAGEMENT ---
+        // --- CONFIG ---
         const peerConfig = { debug: 1 };
         let peer = null;
         let myId = null;
@@ -201,12 +222,13 @@
         let isHost = false;
         let myName = generateRandomName();
         let currentCam = 'user';
+        let videoEnabled = true;
+        let audioEnabled = true;
         
-        // Track connections
-        // Format: { peerId: { call: MediaConnection, conn: DataConnection, name: String } }
+        // Peers: { id: { conn, call, name, color } }
         const peers = {}; 
 
-        // --- INITIALIZATION ---
+        // --- INIT ---
         window.onload = () => {
             const urlParams = new URLSearchParams(window.location.search);
             const r = urlParams.get('room');
@@ -219,27 +241,25 @@
         };
 
         // --- USER ACTIONS ---
-
         async function createMeeting() {
             showLoading(true);
             isHost = true;
             roomId = generateRoomId();
-            await initPeer(roomId); // Host ID = Room ID
+            await initPeer(roomId);
             await enterRoom();
             showToast("Meeting Created! Share the code.");
         }
 
         async function joinInvited() {
             showLoading(true);
-            // Guest gets random ID
-            await initPeer(generateRoomId()); 
+            await initPeer(generateRoomId());
             await enterRoom();
-            connectToHost(roomId); // Connect to Host ID
+            connectToHost(roomId);
         }
 
         async function joinManual() {
             const val = document.getElementById('manual-room').value.trim().toUpperCase();
-            if(!val) return showToast("Please enter a code");
+            if(!val) return showToast("Enter a code");
             roomId = val;
             showLoading(true);
             await initPeer(generateRoomId());
@@ -247,50 +267,23 @@
             connectToHost(roomId);
         }
 
-        // --- PEERJS & NETWORK LOGIC ---
-
+        // --- PEER LOGIC ---
         function initPeer(id) {
             return new Promise((resolve) => {
                 peer = new Peer(id, peerConfig);
-                
-                peer.on('open', (id) => {
-                    myId = id;
-                    resolve();
-                });
-
-                // 1. Handle Incoming Calls (Video)
-                peer.on('call', call => {
-                    call.answer(myStream); // Answer with our stream
-                    handleCall(call);
-                });
-
-                // 2. Handle Incoming Data (Signaling/Names)
-                peer.on('connection', conn => {
-                    handleData(conn);
-                });
-
+                peer.on('open', (id) => { myId = id; resolve(); });
+                peer.on('call', call => { call.answer(myStream); handleCall(call); });
+                peer.on('connection', conn => handleData(conn));
                 peer.on('error', err => {
-                    console.error(err);
                     showLoading(false);
-                    if(err.type === 'unavailable-id') {
-                        alert("Room is busy. Please create a new one.");
-                        location.reload();
-                    }
+                    if(err.type === 'unavailable-id') alert("Room taken. Create new.");
                 });
             });
         }
 
-        // --- MESH NETWORK DISCOVERY ---
-
         function connectToHost(hostId) {
-            // Connect Data first to exchange details
             const conn = peer.connect(hostId);
-            
-            conn.on('open', () => {
-                // Send our info to Host
-                conn.send({ type: 'join-request', from: myId, name: myName });
-            });
-
+            conn.on('open', () => conn.send({ type: 'join-request', from: myId, name: myName }));
             handleData(conn);
         }
 
@@ -301,132 +294,103 @@
             });
 
             conn.on('data', data => {
-                // CASE 1: Host receives join request
+                // 1. Host logic: New user joined
                 if (isHost && data.type === 'join-request') {
                     showToast(`${data.name} joined!`);
-                    
-                    // Store their name
                     if(!peers[data.from]) peers[data.from] = {};
                     peers[data.from].name = data.name;
 
-                    // 1. Send the NEW USER the list of EXISTING PEERS
-                    const existingPeers = Object.keys(peers).filter(p => p !== data.from).map(p => ({
-                        id: p,
-                        name: peers[p].name || "User"
-                    }));
+                    const list = Object.keys(peers).filter(p => p !== data.from).map(p => ({ id: p, name: peers[p].name }));
+                    list.push({ id: myId, name: myName }); // Add host
+
+                    conn.send({ type: 'peer-list', list: list });
                     
-                    // Add Host (Me) to that list so they call me too
-                    existingPeers.push({ id: myId, name: myName });
-
-                    conn.send({ type: 'peer-list', list: existingPeers });
-
-                    // 2. Broadcast the NEW USER to EXISTING PEERS
+                    // Broadcast new user to others
                     Object.keys(peers).forEach(p => {
                         if(p !== data.from && peers[p].conn && peers[p].conn.open) {
-                            peers[p].conn.send({ 
-                                type: 'user-joined', 
-                                id: data.from, 
-                                name: data.name 
-                            });
+                            peers[p].conn.send({ type: 'user-joined', id: data.from, name: data.name });
                         }
                     });
                 }
 
-                // CASE 2: Guest receives Peer List (from Host) -> Call Everyone
+                // 2. Guest logic: Receive peer list
                 if (data.type === 'peer-list') {
-                    data.list.forEach(user => {
-                        if(user.id !== myId) {
-                            connectToPeer(user.id, user.name);
-                        }
-                    });
+                    data.list.forEach(u => { if(u.id !== myId) connectToPeer(u.id, u.name); });
                 }
 
-                // CASE 3: Existing Peer receives "User Joined" notification -> Call them or Wait?
-                // Better: Let the New User call us (Mesh Strategy), but we save the Name.
+                // 3. Everyone: User joined notification
                 if (data.type === 'user-joined') {
                     showToast(`${data.name} joined!`);
                     if(!peers[data.id]) peers[data.id] = {};
                     peers[data.id].name = data.name;
                 }
 
-                // CASE 4: Receive Name Update (Direct)
-                if (data.type === 'name-update') {
-                     updateNameTag(data.from, data.name);
-                }
+                // 4. Direct: Name exchange
+                if (data.type === 'name-update') updateNameTag(data.from, data.name);
+                
+                // 5. Status: Video Muted/Unmuted
+                if (data.type === 'video-status') updateVideoStatus(data.from, data.enabled);
             });
             
-            conn.on('close', () => {
-                 handlePeerDisconnect(conn.peer);
-            });
+            conn.on('close', () => handleDisconnect(conn.peer));
         }
 
-        // Connect to a specific peer (Video + Data)
         function connectToPeer(peerId, name) {
-            if(peers[peerId] && peers[peerId].call) return; // Already connected
-
-            // 1. Call them
+            if(peers[peerId]?.call) return;
             const call = peer.call(peerId, myStream);
             handleCall(call, name);
-
-            // 2. Connect Data (Direct P2P name exchange backup)
             const conn = peer.connect(peerId);
-            conn.on('open', () => {
-                conn.send({ type: 'name-update', from: myId, name: myName });
-            });
+            conn.on('open', () => conn.send({ type: 'name-update', from: myId, name: myName }));
             handleData(conn);
         }
 
-        function handleCall(call, knownName = null) {
+        function handleCall(call, name = null) {
             if(!peers[call.peer]) peers[call.peer] = {};
             peers[call.peer].call = call;
-            if(knownName) peers[call.peer].name = knownName;
+            if(name) peers[call.peer].name = name;
 
-            call.on('stream', remoteStream => {
-                addVideoToGrid(remoteStream, call.peer, peers[call.peer].name);
-            });
-
-            call.on('close', () => handlePeerDisconnect(call.peer));
-            call.on('error', () => handlePeerDisconnect(call.peer));
+            call.on('stream', stream => addVideoToGrid(stream, call.peer, peers[call.peer].name));
+            call.on('close', () => handleDisconnect(call.peer));
+            call.on('error', () => handleDisconnect(call.peer));
         }
 
-        function handlePeerDisconnect(id) {
+        function handleDisconnect(id) {
             if(document.getElementById(`video-${id}`)) {
-                const name = peers[id]?.name || "User";
-                showToast(`${name} left.`);
-                removeVideo(id);
+                showToast(`${peers[id]?.name || 'User'} left`);
+                document.getElementById(`video-${id}`).remove();
             }
-            if(peers[id]) delete peers[id];
+            delete peers[id];
         }
 
-        // --- VIDEO GRID UI ---
+        // --- VIDEO & UI ---
 
         async function enterRoom() {
             try {
                 myStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: true });
-            } catch (e) {
-                myStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true }); // Fallback
+            } catch(e) {
+                myStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
             }
 
-            // UI Transition
             document.getElementById('screen-home').classList.add('hidden');
             document.getElementById('screen-meeting').classList.remove('hidden');
             document.getElementById('room-display').innerText = roomId;
 
-            // Add My Video
             addVideoToGrid(myStream, 'me', myName + " (You)", true);
         }
 
         function addVideoToGrid(stream, id, name = "User", isLocal = false) {
-            if(document.getElementById(`video-${id}`)) return; // Exists
+            if(document.getElementById(`video-${id}`)) return;
 
+            const color = getColorFromId(id);
             const grid = document.getElementById('video-grid');
             
-            // Container
             const card = document.createElement('div');
             card.className = 'video-card';
             card.id = `video-${id}`;
+            card.style.borderColor = color; // Unique Border
+            card.onclick = () => togglePin(card); // Pinning Feature
 
-            // Video
+            // Video Element
             const vid = document.createElement('video');
             vid.srcObject = stream;
             vid.autoplay = true;
@@ -434,22 +398,51 @@
             if(isLocal) vid.muted = true;
             if(isLocal) vid.style.transform = "scaleX(-1)";
 
+            // Avatar Overlay (Hidden by default)
+            const avatar = document.createElement('div');
+            avatar.className = 'avatar-overlay';
+            avatar.innerHTML = `
+                <div class="avatar-circle" style="background: ${color}; box-shadow: 0 0 20px ${color}">
+                    ${name.charAt(0).toUpperCase()}
+                </div>
+                <div class="text-sm font-bold text-slate-300">${name}</div>
+                <div class="text-xs text-slate-500 mt-1">Camera Off</div>
+            `;
+
             // Name Tag
             const tag = document.createElement('div');
             tag.className = 'name-tag';
-            tag.innerHTML = `<span>${name}</span>`;
+            tag.innerHTML = `<span>${name}</span> <i class="fa-solid fa-microphone-slash mic-icon"></i>`;
 
             card.appendChild(vid);
+            card.appendChild(avatar);
             card.appendChild(tag);
             grid.appendChild(card);
-
-            adjustGrid();
         }
 
-        function removeVideo(id) {
-            const el = document.getElementById(`video-${id}`);
-            if(el) el.remove();
-            adjustGrid();
+        function togglePin(card) {
+            if(card.classList.contains('pinned')) {
+                card.classList.remove('pinned');
+            } else {
+                // Unpin others
+                document.querySelectorAll('.video-card.pinned').forEach(c => c.classList.remove('pinned'));
+                card.classList.add('pinned');
+            }
+        }
+
+        function updateVideoStatus(id, enabled) {
+            const card = document.getElementById(`video-${id}`);
+            if(card) {
+                const avatar = card.querySelector('.avatar-overlay');
+                const vid = card.querySelector('video');
+                if(enabled) {
+                    avatar.style.display = 'none';
+                    vid.style.opacity = '1';
+                } else {
+                    avatar.style.display = 'flex';
+                    vid.style.opacity = '0';
+                }
+            }
         }
 
         function updateNameTag(id, name) {
@@ -458,63 +451,53 @@
             if(el) el.innerText = name;
         }
 
-        function adjustGrid() {
-            const grid = document.getElementById('video-grid');
-            const count = grid.children.length;
-            
-            // Remove all sizing classes
-            grid.classList.remove('grid-1', 'grid-2', 'grid-3');
-
-            // Apply logic
-            if (count === 1) grid.classList.add('grid-1');
-            else if (count === 2) grid.classList.add('grid-2');
-            else grid.classList.add('grid-3');
-        }
-
-        // --- CONTROLS ---
+        // --- CONTROL BUTTONS ---
 
         function toggleAudio() {
-            const track = myStream.getAudioTracks()[0];
-            track.enabled = !track.enabled;
+            audioEnabled = !audioEnabled;
+            myStream.getAudioTracks()[0].enabled = audioEnabled;
             const btn = document.getElementById('btn-mic');
-            btn.classList.toggle('btn-off', !track.enabled);
-            btn.innerHTML = track.enabled ? '<i class="fa-solid fa-microphone"></i>' : '<i class="fa-solid fa-microphone-slash"></i>';
+            btn.classList.toggle('btn-off', !audioEnabled);
+            btn.innerHTML = audioEnabled ? '<i class="fa-solid fa-microphone"></i>' : '<i class="fa-solid fa-microphone-slash"></i>';
         }
 
         function toggleVideo() {
-            const track = myStream.getVideoTracks()[0];
-            track.enabled = !track.enabled;
+            videoEnabled = !videoEnabled;
+            myStream.getVideoTracks()[0].enabled = videoEnabled;
+            
             const btn = document.getElementById('btn-vid');
-            btn.classList.toggle('btn-off', !track.enabled);
-            btn.innerHTML = track.enabled ? '<i class="fa-solid fa-video"></i>' : '<i class="fa-solid fa-video-slash"></i>';
+            btn.classList.toggle('btn-off', !videoEnabled);
+            btn.innerHTML = videoEnabled ? '<i class="fa-solid fa-video"></i>' : '<i class="fa-solid fa-video-slash"></i>';
+
+            // Update Local UI
+            updateVideoStatus('me', videoEnabled);
+
+            // Broadcast status
+            Object.values(peers).forEach(p => {
+                if(p.conn && p.conn.open) p.conn.send({ type: 'video-status', from: myId, enabled: videoEnabled });
+            });
         }
 
         async function switchCamera() {
-            if(Object.keys(peers).length > 0) showToast("Switching camera...");
-            
             currentCam = currentCam === 'user' ? 'environment' : 'user';
             myStream.getVideoTracks().forEach(t => t.stop());
-            
             const newStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: currentCam }, audio: true });
             const newTrack = newStream.getVideoTracks()[0];
-            const audTrack = newStream.getAudioTracks()[0]; // Re-grab audio to be safe
 
-            // Replace in Peer connections
+            // Replace in Peers
             for(let p in peers) {
-                const call = peers[p].call;
-                if(call && call.peerConnection) {
-                    const sender = call.peerConnection.getSenders().find(s => s.track.kind === 'video');
-                    if(sender) sender.replaceTrack(newTrack);
-                }
+                const sender = peers[p].call?.peerConnection?.getSenders().find(s => s.track.kind === 'video');
+                if(sender) sender.replaceTrack(newTrack);
             }
 
             // Replace Local
             const myVid = document.querySelector('#video-me video');
             myVid.srcObject = newStream;
             myVid.style.transform = currentCam === 'user' ? "scaleX(-1)" : "none";
-            
-            // Update global ref
             myStream = newStream;
+            
+            // Ensure video enabled state persists
+            newTrack.enabled = videoEnabled;
         }
 
         function leaveMeeting() {
@@ -525,42 +508,40 @@
         function copyLink() {
             const url = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
             navigator.clipboard.writeText(url);
-            showToast("Link copied to clipboard");
+            showToast("Link copied!");
         }
-
+        
         function shareLink() {
-            const url = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
-            if (navigator.share) {
-                navigator.share({ title: 'Join Meeting', url: url });
-            } else {
-                copyLink();
-            }
+             const url = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
+             if(navigator.share) navigator.share({title:'Join Call', url: url}); else copyLink();
         }
 
         // --- UTILS ---
-
-        function generateRoomId() {
-            return Math.random().toString(36).substring(2, 7).toUpperCase();
+        function generateRoomId() { return Math.random().toString(36).substring(2, 7).toUpperCase(); }
+        
+        function generateRandomName() {
+            const adjs = ["Neon", "Cyber", "Tech", "Swift", "Hyper", "Mega"];
+            const nouns = ["Wolf", "Eagle", "Lion", "Bot", "Fox", "Bear"];
+            return adjs[Math.floor(Math.random()*adjs.length)] + " " + nouns[Math.floor(Math.random()*nouns.length)];
         }
 
-        function generateRandomName() {
-            const adjs = ["Happy", "Swift", "Cool", "Brave", "Calm", "Wild"];
-            const nouns = ["Panda", "Fox", "Tiger", "Eagle", "Bear", "Wolf"];
-            return adjs[Math.floor(Math.random()*adjs.length)] + "-" + nouns[Math.floor(Math.random()*nouns.length)];
+        function getColorFromId(id) {
+            let hash = 0;
+            for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash);
+            const h = Math.abs(hash) % 360;
+            return `hsl(${h}, 80%, 60%)`;
         }
 
         function showToast(msg) {
-            const container = document.getElementById('toast-container');
+            const box = document.getElementById('toast-container');
             const t = document.createElement('div');
-            t.className = 'toast';
-            t.innerText = msg;
-            container.appendChild(t);
+            t.className = 'toast'; t.innerText = msg;
+            box.appendChild(t);
             setTimeout(() => t.remove(), 3000);
         }
 
         function showLoading(show) {
-            const el = document.getElementById('loading-msg');
-            if(show) el.classList.remove('hidden'); else el.classList.add('hidden');
+            document.getElementById('loading-msg').classList.toggle('hidden', !show);
         }
     </script>
 </body>
