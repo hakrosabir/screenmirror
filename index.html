@@ -3,16 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ScreenMirror Pro</title>
+    <title>ScreenMirror Pro + Zoom</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         body { background-color: #0f172a; color: #e2e8f0; font-family: sans-serif; }
-        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
+        .glass { background: rgba(30, 41, 59, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.1); }
         .anim-pulse-slow { animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+        
+        /* Slider Styling */
+        input[type=range] {
+            -webkit-appearance: none; width: 100%; background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 24px; width: 24px; border-radius: 50%; 
+            background: #3b82f6; margin-top: -10px; box-shadow: 0 0 10px rgba(59,130,246,0.5);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px; background: #475569; border-radius: 2px;
+        }
+        
+        /* Local Preview & Controls */
+        #local-container { 
+            position: fixed; bottom: 0; left: 0; right: 0; 
+            background: linear-gradient(to top, #000, transparent); 
+            padding: 20px; z-index: 50; display: none; 
+            flex-direction: column; align-items: center;
+        }
+        #local-video-preview {
+            width: 120px; height: 160px; object-fit: cover; 
+            border-radius: 12px; border: 2px solid rgba(255,255,255,0.3);
+            margin-bottom: 10px; background: #000;
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-br from-slate-900 to-slate-800">
@@ -39,44 +64,40 @@
                 </div>
             </button>
 
-            <!-- Button to act as SENDER (Phone) - Manual Option -->
+            <!-- Button to act as SENDER (Phone) -->
             <button onclick="showManualConnect()" class="p-4 rounded-xl bg-slate-700 hover:bg-slate-600 transition-all text-slate-300 border border-slate-600">
                 <i class="fa-solid fa-mobile-screen mr-2"></i> I want to share this screen
             </button>
         </div>
     </div>
 
-    <!-- 2. RECEIVER UI (PC: Shows QR & Video) -->
+    <!-- 2. RECEIVER UI (PC) -->
     <div id="receiver-panel" class="hidden w-full max-w-6xl flex flex-col items-center">
-        
-        <!-- WAITING STATE: Show QR Code -->
+        <!-- WAITING STATE -->
         <div id="receiver-waiting" class="glass p-10 rounded-3xl text-center max-w-lg w-full shadow-2xl border-2 border-blue-500/30 relative overflow-hidden">
             <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 via-purple-500 to-blue-500 anim-pulse-slow"></div>
-            
             <h3 class="text-2xl font-bold text-white mb-2">Scan to Connect</h3>
             <p class="text-slate-400 mb-6">Open your phone's camera and scan this code</p>
-            
             <div class="bg-white p-4 rounded-xl inline-block shadow-inner mb-6">
                 <div id="qrcode"></div>
             </div>
-
             <div class="text-xs text-slate-500 font-mono bg-slate-900/50 p-2 rounded">
                 ID: <span id="display-id" class="text-blue-400 font-bold text-lg select-all">Generating...</span>
             </div>
-            
             <div class="mt-6 flex items-center justify-center gap-2 text-xs text-slate-500">
-                <div class="w-2 h-2 bg-green-500 rounded-full animate-ping"></div>
-                Waiting for connection...
+                <div class="w-2 h-2 bg-green-500 rounded-full animate-ping"></div> Waiting for connection...
             </div>
-            
             <button onclick="location.reload()" class="mt-8 text-slate-500 hover:text-white text-sm underline">Cancel</button>
         </div>
 
-        <!-- CONNECTED STATE: Video Player -->
+        <!-- CONNECTED STATE -->
         <div id="video-container" class="hidden w-full flex flex-col items-center">
             <div class="w-full bg-black rounded-xl shadow-2xl overflow-hidden border border-slate-700 relative aspect-video max-h-[85vh]">
-                <video id="remote-video" autoplay playsinline class="w-full h-full object-contain"></video>
-                <div id="video-overlay" class="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent opacity-0 hover:opacity-100 transition-opacity flex justify-between items-center">
+                <video id="remote-video" autoplay playsinline muted controls class="w-full h-full object-contain"></video>
+                <div id="video-status" class="absolute inset-0 flex items-center justify-center bg-black/80 z-10 hidden">
+                     <p class="text-white"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Loading Stream...</p>
+                </div>
+                <div id="video-overlay" class="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent opacity-0 hover:opacity-100 transition-opacity flex justify-between items-center z-20">
                     <span class="text-white font-mono text-sm"><i class="fa-solid fa-circle text-red-500 text-[10px] mr-2 animate-pulse"></i>LIVE</span>
                     <button onclick="toggleFullScreen()" class="text-white hover:text-blue-400"><i class="fa-solid fa-expand"></i> Fullscreen</button>
                 </div>
@@ -87,29 +108,25 @@
         </div>
     </div>
 
-    <!-- 3. SENDER UI (Phone: Start Sharing) -->
+    <!-- 3. SENDER UI (Phone) -->
     <div id="sender-panel" class="hidden glass p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center">
         <div class="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-blue-500/50">
             <i class="fa-solid fa-tower-broadcast text-2xl text-white"></i>
         </div>
-        
         <h2 class="text-2xl font-bold text-white mb-2">Ready to Mirror</h2>
         <p class="text-slate-400 mb-8 text-sm">Cast your screen to the connected device.</p>
 
+        <!-- Connection Status -->
         <div id="connection-status" class="hidden mb-4 text-yellow-400 text-sm animate-pulse">
-            Connecting to receiver...
+            Connecting...
         </div>
 
-        <!-- Screen Share Button -->
         <button id="start-share-btn" onclick="startSharing('screen')" class="w-full py-4 bg-green-600 hover:bg-green-500 text-white font-bold rounded-xl shadow-lg hover:shadow-green-500/30 transition-all transform hover:-translate-y-1 mb-3">
             <i class="fa-solid fa-mobile-screen mr-2"></i> Share Screen
         </button>
-
-        <!-- Camera Share Button (Fallback) -->
         <button id="start-cam-btn" onclick="startSharing('camera')" class="w-full py-3 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-xl shadow border border-slate-600 transition-all mb-3">
-            <i class="fa-solid fa-camera mr-2"></i> Share Camera Only
+            <i class="fa-solid fa-camera mr-2"></i> Share Camera
         </button>
-        
         <button onclick="location.href=window.location.pathname" class="text-slate-500 text-sm mt-4">Cancel</button>
     </div>
 
@@ -121,15 +138,33 @@
         <button onclick="location.reload()" class="mt-4 text-slate-500 text-sm">Back</button>
     </div>
 
-    <script>
-        // --- CONFIGURATION ---
-        const peerConfig = { debug: 1 }; 
+    <!-- 5. ADVANCED CAMERA CONTROLS (Overlay) -->
+    <div id="local-container">
+        <video id="local-video-preview" autoplay playsinline muted></video>
+        
+        <!-- Zoom Controls -->
+        <div id="zoom-controls" class="w-full max-w-xs glass p-4 rounded-xl hidden">
+            <div class="flex justify-between text-xs text-blue-300 mb-2 font-bold uppercase">
+                <span>Wide</span>
+                <span>Zoom</span>
+            </div>
+            <input type="range" id="zoom-slider" min="1" max="10" step="0.1" value="1">
+            <div class="text-center text-xs text-slate-400 mt-2" id="zoom-value">1.0x</div>
+        </div>
 
-        // --- STATE ---
+        <div id="wakelock-status" class="mt-2 text-[10px] text-green-400 hidden">
+            <i class="fa-solid fa-bolt"></i> High Performance Mode Active
+        </div>
+    </div>
+
+    <script>
+        // --- CONFIG ---
+        const peerConfig = { debug: 1 }; 
         let peer = null;
         let targetPeerId = null;
+        let wakeLock = null; // For keeping screen awake
 
-        // --- INITIALIZATION ---
+        // --- INIT ---
         window.onload = () => {
             const urlParams = new URLSearchParams(window.location.search);
             const refId = urlParams.get('ref');
@@ -141,7 +176,7 @@
             }
         };
 
-        // --- RECEIVER LOGIC (PC) ---
+        // --- RECEIVER ---
         function initReceiver() {
             showPanel('receiver-panel');
             const myId = generateId();
@@ -155,24 +190,24 @@
             });
 
             peer = new Peer(myId, peerConfig);
-            
             peer.on('call', (call) => {
                 document.getElementById('receiver-waiting').classList.add('hidden');
                 document.getElementById('video-container').classList.remove('hidden');
+                document.getElementById('video-status').classList.remove('hidden');
+                
                 call.answer();
                 call.on('stream', (remoteStream) => {
+                    document.getElementById('video-status').classList.add('hidden');
                     const video = document.getElementById('remote-video');
                     video.srcObject = remoteStream;
+                    video.play().catch(e => console.log(e));
                 });
                 call.on('close', () => location.reload());
             });
-            
-            peer.on('error', err => alert("Connection Error: " + err.type));
         }
 
-        // --- SENDER LOGIC (Phone) ---
+        // --- SENDER ---
         function showManualConnect() { showPanel('manual-panel'); }
-
         function connectToId(id) {
             if(!id) return alert("Enter ID");
             targetPeerId = id.trim();
@@ -183,51 +218,60 @@
             const btn = document.getElementById(mode === 'screen' ? 'start-share-btn' : 'start-cam-btn');
             const originalText = btn.innerHTML;
             btn.disabled = true;
-            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Initializing...';
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Starting...';
 
             try {
-                peer = new Peer(generateId(), peerConfig);
-                await new Promise(resolve => peer.on('open', resolve));
+                // 1. Init Peer
+                if(!peer) {
+                     peer = new Peer(generateId(), peerConfig);
+                     await new Promise(resolve => peer.on('open', resolve));
+                }
 
                 let stream = null;
 
-                if (mode === 'screen') {
-                    // Check for screen support
-                    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
-                        // FALLBACK LOGIC
-                        if(confirm("Your phone browser does not support Screen Sharing. Switch to Camera Sharing instead?")) {
-                            mode = 'camera'; // switch mode
-                        } else {
-                            throw new Error("Screen sharing not supported.");
-                        }
-                    }
-                }
-
-                // Get Media Stream based on Mode (may have switched to camera above)
+                // 2. Get Stream & Apply Constraints
                 if (mode === 'screen') {
                     stream = await navigator.mediaDevices.getDisplayMedia({
-                        video: { cursor: "always", frameRate: 30 },
-                        audio: false 
+                        video: { cursor: "always" }, audio: false 
                     });
                 } else {
-                    // Camera Mode
-                    stream = await navigator.mediaDevices.getUserMedia({ 
-                        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
-                        audio: true
-                    });
+                    // CAMERA MODE
+                    const constraints = { 
+                        video: { 
+                            facingMode: 'environment', // Back camera
+                            width: { ideal: 1920 },    // HD Preference
+                            height: { ideal: 1080 },
+                            focusMode: 'continuous'    // Request Auto-focus
+                        },
+                        audio: true 
+                    };
+                    
+                    try {
+                         stream = await navigator.mediaDevices.getUserMedia(constraints);
+                    } catch(e) {
+                        // Fallback if HD fails
+                        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                    }
+
+                    // --- ADVANCED CAMERA FEATURES ---
+                    setupCameraControls(stream);
                 }
 
-                // Call Receiver
+                // 3. Request Wake Lock (Keep Awake)
+                requestWakeLock();
+
+                // 4. Call Receiver
                 const call = peer.call(targetPeerId, stream);
 
-                // UI Update
+                // 5. UI Updates
                 btn.classList.replace('bg-green-600', 'bg-red-600');
                 btn.classList.replace('bg-slate-700', 'bg-red-600');
                 btn.innerHTML = '<i class="fa-solid fa-stop"></i> Stop Sharing';
                 
-                // Cleanup function
                 const stopSharing = () => {
                     stream.getTracks().forEach(track => track.stop());
+                    document.getElementById('local-container').style.display = 'none';
+                    if(wakeLock) wakeLock.release();
                     location.href = window.location.pathname;
                 };
 
@@ -236,9 +280,64 @@
 
             } catch (err) {
                 console.error(err);
-                alert("Error: " + err.message + "\n\nTry using the 'Share Camera' button if Screen Share fails.");
+                alert("Error: " + err.message);
                 btn.disabled = false;
                 btn.innerHTML = originalText;
+            }
+        }
+
+        // --- CAMERA FEATURES (Zoom/Focus) ---
+        function setupCameraControls(stream) {
+            const track = stream.getVideoTracks()[0];
+            const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+            const settings = track.getSettings ? track.getSettings() : {};
+
+            // Show Local Preview
+            const localVid = document.getElementById('local-video-preview');
+            localVid.srcObject = stream;
+            document.getElementById('local-container').style.display = 'flex';
+
+            // Check Zoom Capability
+            const zoomControl = document.getElementById('zoom-controls');
+            const slider = document.getElementById('zoom-slider');
+            const zoomVal = document.getElementById('zoom-value');
+
+            if ('zoom' in capabilities) {
+                zoomControl.classList.remove('hidden');
+                slider.min = capabilities.zoom.min;
+                slider.max = capabilities.zoom.max;
+                slider.step = capabilities.zoom.step;
+                slider.value = settings.zoom || 1;
+                zoomVal.innerText = `${slider.value}x`;
+
+                slider.oninput = async () => {
+                    try {
+                        await track.applyConstraints({ advanced: [{ zoom: slider.value }] });
+                        zoomVal.innerText = `${slider.value}x`;
+                    } catch (err) { console.error("Zoom failed", err); }
+                };
+            } else {
+                zoomControl.classList.add('hidden'); // Hide if phone doesn't support zoom
+            }
+
+            // Try to force focus again
+            if('focusMode' in capabilities) {
+                track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(e=>{});
+            }
+        }
+
+        // --- WAKE LOCK (Keep Screen On) ---
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    document.getElementById('wakelock-status').classList.remove('hidden');
+                    wakeLock.addEventListener('release', () => {
+                        document.getElementById('wakelock-status').classList.add('hidden');
+                    });
+                }
+            } catch (err) {
+                console.log("Wake Lock not supported or denied", err);
             }
         }
 
@@ -249,11 +348,7 @@
             });
             document.getElementById(id).classList.remove('hidden');
         }
-
-        function generateId() {
-            return Math.floor(Math.random()*16777215).toString(16).slice(0,4).toUpperCase();
-        }
-
+        function generateId() { return Math.floor(Math.random()*16777215).toString(16).slice(0,4).toUpperCase(); }
         function toggleFullScreen() {
             if (!document.fullscreenElement) document.documentElement.requestFullscreen();
             else if (document.exitFullscreen) document.exitFullscreen();
